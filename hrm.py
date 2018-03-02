@@ -4,7 +4,7 @@ import math
 import logging
 import json
 from scipy import signal
-import matplotlib.pyplot as plt
+import sys
 
 logging.basicConfig(filename="hrm.log",
                     format='%(asctime)s %(message)s',
@@ -30,15 +30,16 @@ class hrm:
         self.duration = self.calc_duration(data)
         data_norm = self.normalize_data(data)
         [threshold, data_cutoff] = self.cut_data(data_norm)
-        [self.mean_hr_bpm, self.num_beats, self.beats, voltages] = self.calc_beats(data_norm, data, threshold,
-                                                                                   data_cutoff)
-        self.plot_data(data, data_norm, self.beats, voltages)
+        [self.mean_hr_bpm, self.num_beats, self.beats, voltages] \
+            = self.calc_beats(data_norm, data, threshold, data_cutoff)
         self.write_json()
 
     def load_csv(self):
-        '''Function to load csv file and convert it to a numpy array and checks data for discrepancies
+        '''Function to load csv file and convert it to a numpy array
+         and checks data for discrepancies
 
-            :return: A two column Numpy array with time data in first column and voltage data in second
+            :return: A two column Numpy array with time data in first
+             column and voltage data in second
             :rtype: array
             :raises ImportError: if a pandas is not installed
             '''
@@ -46,6 +47,7 @@ class hrm:
             datapd = pd.read_csv(self.csvdata)
             data = datapd.as_matrix()
             logging.info('file found and array created')
+            first = True
             for i in range(0, data.shape[0]):
                 if isinstance(data[i, 0], str) or isinstance(data[i, 1], str):
                     try:
@@ -55,13 +57,15 @@ class hrm:
                         data[i, 0] = data[i-1, 0]
                         data[i, 1] = data[i-1, 1]
                         print('non digit string in data')
-                        logging.warning('string or empty space in data replaced with previous row''s values')
+                        logging.warning('string or empty space in data '
+                                        'replaced with previous row''s values')
                 if data[i, 0] is None or data[i, 1] == 1:
                     data[i, 0] = data[i-1, 0]
                     data[i, 1] = data[i-1, 1]
-                if data[i, 1] > 300:
+                if data[i, 1] > 300 and first is True:
                     logging.warning('ECG voltage greater than 300 mV')
-                    raise ValueError('ECG voltage greater than 300mV')
+                    print('ECG voltage exceeds 300 mV')
+                    first = False
             data = np.array(data, dtype=np.float32)
             return data
         except ImportError:
@@ -74,7 +78,8 @@ class hrm:
             :param array data: contains two columns of numerical lists
             :return: a tuple of the minimum and maximum voltages in signal
             :rtype: tuple
-            :raises ValueError: if either column of data is not a numerical list
+            :raises ValueError: if either column of data is not a
+             numerical list
             :raises TypeError: if csv file is not correctly formatted
             :raises ImportError: if numpy is not installed
             '''
@@ -109,10 +114,12 @@ class hrm:
         '''Function to autocorrelate data
 
             :param array data: contains two columns of numerical lists
-            :return: autocorrelated data, a voltage threshold to signal a beat, and the autocorrelated data with less
+            :return: autocorrelated data, a voltage threshold to signal
+             a beat, and the autocorrelated data with less
              significant voltage sign data as 0's.
             :rtype: array, float and array respectively
-            :raises IndexError: if file has less than 10 relative minimums or maximums
+            :raises IndexError: if file has less than 10 relative minimums
+             or maximums
             :raises ImportError: if a required package was not loaded
             '''
         data_avg = []
@@ -131,20 +138,24 @@ class hrm:
             elif i > data.shape[0] - window_size/2:
                 data_avg.append(np.average(data[i-window_size:i, 1]))
             else:
-                data_avg.append(np.average(data[int(i-window_size/2):int(i+window_size/2), 1]))
+                data_avg.append(np.average(data[int(i-window_size/2):
+                                                int(i+window_size/2), 1]))
 
         data_normal = data[:, 1] - data_avg
         logging.info('data was successfully autocorrelated')
         return data_normal
 
     def cut_data(self, data_normal):
-        '''Function to replace less significant signed voltage data (positive or negative) with 0's.
+        '''Function to replace less significant signed voltage
+         data (positive or negative) with 0's.
 
                     :param array data_normal: single dimension numerical list
-                    :return: a voltage threshold to signal a beat, and the autocorrelated data with less
+                    :return: a voltage threshold to signal a beat,
+                    and the autocorrelated data with less
                      significant voltage sign data as 0's.
                     :rtype: float and array respectively
-                    :raises IndexError: if file has less than 10 relative minimums or maximums
+                    :raises IndexError: if file has less than 10 relative
+                     minimums or maximums
                     :raises ImportError: if a required package was not loaded
                     '''
         try:
@@ -165,7 +176,8 @@ class hrm:
             print('must have scipy.signal package installed')
             logging.debug('Required package was not installed')
         except IndexError:
-            print('there are less than 10 relative maximum or minimum in CSV file')
+            print('there are less than 10 relative maximum or'
+                  ' minimum in CSV file')
             logging.warning('file contains a small amount of data')
 
         threshold = None
@@ -188,14 +200,16 @@ class hrm:
         return threshold, data_cutoff
 
     def calc_beats(self, data_norm, data, threshold, data_cutoff):
-        '''Function to calculate beat identifying related parameters like bpm, number of beats, and time of beats
+        '''Function to calculate beat identifying related parameters
+         like bpm, number of beats, and time of beats
 
                     :param array data_norm: list of correlated voltage data
                     :param array data: two columns of numerical lists
                     :param float threshold: 65% if this value signals a beat
-                    :param array data_cutoff: list of correlated voltage data with less
-                     significant sign voltages replaced with 0
-                    :return: average bpm, the number of total beats, time of beats, and voltages in correlated
+                    :param array data_cutoff: list of correlated voltage
+                    data with less significant sign voltages replaced with 0
+                    :return: average bpm, the number of total beats,
+                     time of beats, and voltages in correlated
                      data at these times.
                     :rtype: float, int, array and array respectively
                     '''
@@ -208,7 +222,8 @@ class hrm:
             if data_cutoff[maximums[0][i]] > threshold and not beats:
                 beats.append(data[maximums[0][i], 0])
                 voltages.append(data_norm[maximums[0][i]])
-            elif data_cutoff[maximums[0][i]] > threshold and data[maximums[0][i],0]-beats[len(beats)-1] > 0.3:
+            elif data_cutoff[maximums[0][i]] > threshold and \
+                    data[maximums[0][i], 0]-beats[len(beats)-1] > 0.3:
                 beats.append(data[maximums[0][i], 0])
                 voltages.append(data_norm[maximums[0][i]])
 
@@ -218,32 +233,15 @@ class hrm:
         logging.info('all beat identifying calculations have been made')
         return mean_hr_bpm, num_beats, beats, voltages
 
-    def plot_data(self, data, data_norm, beats, voltages):
-        '''Function to plot autocorrelated data with labeled beats
-
-                    :param array data: contains two columns of numerical lists
-                    :param array data_norm: list of correlated voltage data
-                    :param array beats: list of times that beats occur
-                    :param array voltages: list of voltages of beats
-                    :raises ImportError: if a required package was not loaded
-                    '''
-
-        try:
-            plt.plot(data[:, 0], data_norm)
-            plt.plot(beats, voltages, 'ko')
-            plt.show()
-            logging.info('plot of normalized data with beats was made')
-        except ImportError:
-            print('must have matplotlib.pyplot installed')
-            logging.debug('Required package was not installed')
-
     def write_json(self):
         '''Function to save 5 attributes for ECG in json file
 
                     :raises ImportError: if JSON has not been imported
                             '''
-        d = {'mean_hr_bpm': self.mean_hr_bpm, 'voltage_extremes': [self.voltage_extremes], 'duration':
-             [self.duration], 'num_beats': [self.num_beats], 'beats': [self.beats]}
+        d = {'mean_hr_bpm': self.mean_hr_bpm, 'voltage_extremes':
+             [self.voltage_extremes], 'duration':
+             [self.duration], 'num_beats': [self.num_beats],
+             'beats': [self.beats]}
         df = pd.DataFrame(data=d)
         df.to_json(self.csvdata[:-3]+'json')
         print(self.csvdata[:-3]+'json created')
